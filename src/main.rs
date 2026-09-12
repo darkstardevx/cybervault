@@ -1,8 +1,16 @@
+mod app;
+mod clipboard;
 mod crypto;
+mod ui;
 mod vault;
 
 use clap::{Parser, Subcommand};
-use std::io::{IsTerminal, Read, Write};
+use crossterm::event::{self, Event, KeyCode};
+use crossterm::execute;
+use crossterm::terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen};
+use ratatui::backend::CrosstermBackend;
+use ratatui::Terminal;
+use std::io::{self, IsTerminal, Read};
 use std::path::PathBuf;
 use std::process::{Command, ExitCode};
 use vault::{Entry, VaultData};
@@ -10,8 +18,9 @@ use vault::{Entry, VaultData};
 #[derive(Parser, Debug)]
 #[command(name = "cybervault", version = "0.1.0", about = "Encrypted secrets vault")]
 struct Args {
+    /// Bare invocation (no subcommand) launches the interactive TUI.
     #[command(subcommand)]
-    command: Commands,
+    command: Option<Commands>,
 
     /// Path to the vault file. Defaults to ~/.local/share/cybervault/vault.cvlt.
     #[arg(long, global = true)]
@@ -93,7 +102,7 @@ fn read_secret_to_store() -> Result<String, String> {
     }
 }
 
-fn today() -> String {
+pub fn today() -> String {
     Command::new("date")
         .arg("+%Y-%m-%d")
         .output()
@@ -102,11 +111,151 @@ fn today() -> String {
         .unwrap_or_else(|| "unknown-date".to_string())
 }
 
-fn copy_to_clipboard(text: &str) -> std::io::Result<()> {
-    use std::process::Stdio;
-    let mut child = Command::new("wl-copy").stdin(Stdio::piped()).spawn()?;
-    child.stdin.take().expect("stdin was piped").write_all(text.as_bytes())?;
-    child.wait().map(|_| ())
+/// Unlocks the vault and runs the interactive TUI. Password entry and
+/// the initial load happen *before* raw mode / the alternate screen are
+/// entered, so a wrong password or a missing/corrupt vault fails with a
+/// normal, readable terminal error instead of garbling the screen.
+fn run_tui(path: PathBuf, color_on: bool) -> ExitCode {
+    banner(color_on);
+
+    if !path.exists() {
+        eprintln!("cybervault: no vault at {} — run `cybervault init` first", path.display());
+        return ExitCode::FAILURE;
+    }
+    let password = match read_master_password(false) {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("cybervault: {e}");
+            return ExitCode::FAILURE;
+        }
+    };
+    let data = match vault::load(&path, &password) {
+        Ok(d) => d,
+        Err(e) => {
+            eprintln!("cybervault: {e}");
+            return ExitCode::FAILURE;
+        }
+    };
+
+    let mut app = app::App::new(path, password, data);
+    let tui_result = (|| -> io::Result<()> {
+        enable_raw_mode()?;
+        let mut stdout = io::stdout();
+        execute!(stdout, EnterAlternateScreen)?;
+        let backend = CrosstermBackend::new(stdout);
+        let mut terminal = Terminal::new(backend)?;
+
+        let run_result = run_event_loop(&mut terminal, &mut app);
+
+        disable_raw_mode()?;
+        execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
+        terminal.show_cursor()?;
+        run_result
+    })();
+
+    match tui_result {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(e) => {
+            eprintln!("cybervault: TUI error: {e}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+fn run_event_loop(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut app::App) -> io::Result<()> {
+    loop {
+        terminal.draw(|frame| ui::draw(frame, app))?;
+
+        if app.should_quit {
+            return Ok(());
+        }
+
+        if let Event::Key(key) = event::read()? {
+            // Any keypress clears a one-shot status message from the
+            // previous action rather than leaving it stuck on screen;
+            // a handler below may set a fresh one for this action.
+            app.status = None;
+            match app.mode {
+                app::Mode::Normal => handle_normal(app, key.code),
+                app::Mode::Filter => handle_filter(app, key.code),
+                app::Mode::AddLabel | app::Mode::AddSecret | app::Mode::AddNote => handle_add(app, key.code),
+                app::Mode::ConfirmRemove => handle_confirm_remove(app, key.code),
+            }
+        }
+
+        if app.should_quit {
+            return Ok(());
+        }
+    }
+}
+
+fn handle_normal(app: &mut app::App, code: KeyCode) {
+    match code {
+        KeyCode::Char('q') | KeyCode::Esc => app.should_quit = true,
+        KeyCode::Char('j') | KeyCode::Down => app.next(),
+        KeyCode::Char('k') | KeyCode::Up => app.previous(),
+        KeyCode::Char('/') => {
+            app.filter_text.clear();
+            app.input_buffer.clear();
+            app.mode = app::Mode::Filter;
+        }
+        KeyCode::Char('v') | KeyCode::Enter => app.toggle_reveal(),
+        KeyCode::Char('c') => app.copy_selected(),
+        KeyCode::Char('a') => app.begin_add(),
+        KeyCode::Char('d') => {
+            if app.selected_entry().is_some() {
+                app.mode = app::Mode::ConfirmRemove;
+            }
+        }
+        _ => {}
+    }
+}
+
+fn handle_filter(app: &mut app::App, code: KeyCode) {
+    match code {
+        KeyCode::Esc => {
+            app.filter_text.clear();
+            app.input_buffer.clear();
+            app.apply_filter();
+            app.mode = app::Mode::Normal;
+        }
+        KeyCode::Enter => app.mode = app::Mode::Normal,
+        KeyCode::Backspace => {
+            app.input_buffer.pop();
+            app.filter_text = app.input_buffer.clone();
+            app.apply_filter();
+        }
+        KeyCode::Char(c) => {
+            app.input_buffer.push(c);
+            app.filter_text = app.input_buffer.clone();
+            app.apply_filter();
+        }
+        _ => {}
+    }
+}
+
+fn handle_add(app: &mut app::App, code: KeyCode) {
+    match code {
+        KeyCode::Esc => app.cancel_add(),
+        KeyCode::Enter => match app.mode {
+            app::Mode::AddLabel => app.confirm_label(),
+            app::Mode::AddSecret => app.confirm_secret(),
+            app::Mode::AddNote => app.confirm_note_and_save(),
+            _ => {}
+        },
+        KeyCode::Backspace => {
+            app.input_buffer.pop();
+        }
+        KeyCode::Char(c) => app.input_buffer.push(c),
+        _ => {}
+    }
+}
+
+fn handle_confirm_remove(app: &mut app::App, code: KeyCode) {
+    match code {
+        KeyCode::Char('y') | KeyCode::Char('Y') => app.remove_selected(),
+        _ => app.mode = app::Mode::Normal,
+    }
 }
 
 fn main() -> ExitCode {
@@ -114,9 +263,13 @@ fn main() -> ExitCode {
     let color_on = !args.no_color;
     let path = args.path.unwrap_or_else(default_vault_path);
 
+    let Some(command) = args.command else {
+        return run_tui(path, color_on);
+    };
+
     banner(color_on);
 
-    match args.command {
+    match command {
         Commands::Init { force } => {
             if path.exists() && !force {
                 eprintln!("cybervault: {} already exists — pass --force to overwrite it (this destroys the existing vault)", path.display());
@@ -194,7 +347,7 @@ fn main() -> ExitCode {
             match data.entries.get(&label) {
                 Some(entry) => {
                     if copy {
-                        match copy_to_clipboard(&entry.secret) {
+                        match clipboard::copy(&entry.secret) {
                             Ok(()) => println!("cybervault: \"{label}\" copied to clipboard"),
                             Err(e) => eprintln!("cybervault: failed to copy to clipboard: {e}"),
                         }
