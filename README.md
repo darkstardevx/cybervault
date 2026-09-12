@@ -28,7 +28,8 @@ cybervault remove github
 
 Every operation prompts for the master password fresh — no unlocked
 session sits around anywhere to be stolen. `add` reads the secret from
-stdin if it's piped (the path Keysmith's `--save` would use), otherwise
+stdin if it's piped — the path [Keysmith](https://github.com/darkstardevx/keysmith)'s
+`--save <label>` flag uses (`keysmith password --save github`) — otherwise
 prompts interactively with hidden input.
 
 ## 🔒 How it actually works
@@ -62,7 +63,6 @@ src/main.rs     CLI
 
 - No re-keying (changing the master password re-encrypts with a new key derived from the new password, but there's no dedicated `change-password` command yet — would need to load with the old password and save with the new one manually today)
 - Clipboard support is Wayland-only (`wl-copy`)
-- No Keysmith `--save` integration yet — planned, not yet wired up
 
 ## 📄 License
 
