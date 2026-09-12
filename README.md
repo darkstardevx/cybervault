@@ -60,15 +60,24 @@ your own or generate one on the spot via
 [Keysmith](https://github.com/darkstardevx/keysmith):
 
 ```
-ctrl+g          generate a password (keysmith password --raw --length 24)
-ctrl+p          generate a passphrase (keysmith passphrase --raw)
+ctrl+g          choose a length, then generate a password
+ctrl+p          choose a word count, then generate a passphrase
 ```
+
+Both open a small prompt first — password length (4-128 chars) or
+passphrase word count (3-12 words) — showing a live entropy estimate
+and strength label (`~155 bits (Very Strong)`) as you type, so you can
+pick a value that actually hits the strength you want before anything
+is generated. Enter generates at that length/count (`keysmith password
+--raw --length N` / `keysmith passphrase --raw --words N`) and remembers
+it as the default next time; Esc backs out and restores whatever you'd
+typed into the secret field before Ctrl+G/Ctrl+P.
 
 The generated value lands in the input field exactly like typed text —
 reroll as many times as you want (Ctrl+G/Ctrl+P again), hand-edit it, or
 just press Enter to accept it. Requires `keysmith` installed and on
-`PATH`; if it's missing or fails, the input field is left untouched and
-the status line says why.
+`PATH`; if it's missing or fails, the secret field is restored to
+whatever it held before and the status line says why.
 
 Colors come from the active `cybercore` theme (respects `CYBERGRID_THEME`),
 same as every other cybercore-aware tool.
@@ -83,17 +92,21 @@ This composes well-audited primitives (`argon2`, `chacha20poly1305` — both rea
 
 ## ✅ Verification
 
-17 unit tests. 10 on the crypto/vault-format layer: round-trip correctness,
+25 unit tests. 10 on the crypto/vault-format layer: round-trip correctness,
 wrong-password rejection, tampered-ciphertext detection (bit-flip in the
 auth tag, confirmed it fails rather than decrypting to garbage silently),
 fresh salt/nonce per save, bad-magic-bytes and truncated-file rejection.
-7 on the TUI's app-state logic (`app.rs`): filter narrowing (case-insensitive,
+12 on the TUI's app-state logic (`app.rs`): filter narrowing (case-insensitive,
 including the empty-result case), the add wizard persisting a real entry to
 disk (reloaded independently to confirm, not just checked in memory) and
 correctly cancelling on an empty secret, remove actually persisting, and
-Keysmith generation — run against the **real installed `keysmith` binary**,
-not a mock, confirming a generated password is actually 24 characters and
-that generation is a no-op outside the secret-entry step.
+the generate-options flow — run against the **real installed `keysmith`
+binary**, not a mock: a chosen length/word-count actually produces a
+secret of that size, out-of-range and non-numeric input is rejected
+without leaving the prompt, Esc restores whatever was typed before
+generating was requested, and generation is a no-op outside the
+secret-entry step. 3 more on `keysmith_gen.rs`'s local entropy-estimate
+math (cross-checked by hand, same discipline as Keysmith's own tests).
 CLI/TUI layer verified for help text and graceful (non-panicking) failure
 when there's no real terminal for the password prompt or for entering
 raw mode — the actual interactive `init`/`add`/`get`/TUI workflow needs a
@@ -105,7 +118,7 @@ real terminal to fully exercise, same limitation as Keysmith's `pwhash`.
 src/crypto.rs        Argon2id key derivation + ChaCha20-Poly1305 encrypt/decrypt
 src/vault.rs         on-disk file format, Entry/VaultData, save/load
 src/clipboard.rs     wl-copy integration (shared by `get --copy` and the TUI)
-src/keysmith_gen.rs  shells out to `keysmith ... --raw` for the TUI's add wizard
+src/keysmith_gen.rs  shells out to `keysmith ... --raw`, plus local entropy estimates for the length/word-count prompt
 src/app.rs           TUI application state
 src/ui.rs            TUI rendering (ratatui, cybercore-themed)
 src/main.rs          CLI + TUI event loop

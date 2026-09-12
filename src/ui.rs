@@ -46,7 +46,10 @@ impl Theme {
 
 pub fn draw(frame: &mut Frame, app: &App) {
     let theme = Theme::load();
-    let has_input = matches!(app.mode, Mode::Filter | Mode::AddLabel | Mode::AddSecret | Mode::AddNote);
+    let has_input = matches!(
+        app.mode,
+        Mode::Filter | Mode::AddLabel | Mode::AddSecret | Mode::AddNote | Mode::GenPasswordLength | Mode::GenPassphraseWords
+    );
 
     let chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -84,11 +87,13 @@ fn draw_title(frame: &mut Frame, theme: &Theme, app: &App, area: Rect) {
 }
 
 fn draw_input_line(frame: &mut Frame, theme: &Theme, app: &App, area: Rect) {
-    let (label, masked) = match app.mode {
-        Mode::Filter => ("filter", false),
-        Mode::AddLabel => ("label", false),
-        Mode::AddSecret => ("secret — ctrl+g generate password, ctrl+p generate passphrase", true),
-        Mode::AddNote => ("note (optional)", false),
+    let (label, masked): (String, bool) = match app.mode {
+        Mode::Filter => ("filter".to_string(), false),
+        Mode::AddLabel => ("label".to_string(), false),
+        Mode::AddSecret => ("secret — ctrl+g generate password, ctrl+p generate passphrase".to_string(), true),
+        Mode::GenPasswordLength => (format!("password length, 4-128 chars{}", preview_suffix(app)), false),
+        Mode::GenPassphraseWords => (format!("passphrase word count, 3-12{}", preview_suffix(app)), false),
+        Mode::AddNote => ("note (optional)".to_string(), false),
         Mode::Normal | Mode::ConfirmRemove => unreachable!(),
     };
     let shown = if masked { "*".repeat(app.input_buffer.chars().count()) } else { app.input_buffer.clone() };
@@ -97,6 +102,16 @@ fn draw_input_line(frame: &mut Frame, theme: &Theme, app: &App, area: Rect) {
         .border_style(Style::default().fg(theme.cyan))
         .title(Span::styled(format!(" {label} "), Style::default().fg(theme.cyan)));
     frame.render_widget(Paragraph::new(format!("{shown}_")).block(block), area);
+}
+
+/// " — ~155 bits (Very Strong)"-style suffix for the generate-options
+/// prompts, live as the user types a length/word count. Empty while the
+/// field doesn't parse to a valid number yet.
+fn preview_suffix(app: &App) -> String {
+    match app.gen_options_preview() {
+        Some((bits, label)) => format!(" — ~{} bits ({label})", bits.round()),
+        None => String::new(),
+    }
 }
 
 fn draw_list(frame: &mut Frame, theme: &Theme, app: &App, area: Rect) {
@@ -175,6 +190,9 @@ fn draw_footer(frame: &mut Frame, theme: &Theme, app: &App, area: Rect) {
                 "enter confirm  esc cancel  ctrl+g generate password  ctrl+p generate passphrase",
                 Style::default().fg(theme.muted),
             )),
+            Mode::GenPasswordLength | Mode::GenPassphraseWords => {
+                Line::from(Span::styled("enter generate  esc cancel (keeps what you had)", Style::default().fg(theme.muted)))
+            }
             Mode::Filter | Mode::AddLabel | Mode::AddNote => {
                 Line::from(Span::styled("enter confirm  esc cancel", Style::default().fg(theme.muted)))
             }

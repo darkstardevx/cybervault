@@ -180,6 +180,7 @@ fn run_event_loop(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &m
                 app::Mode::Normal => handle_normal(app, key.code),
                 app::Mode::Filter => handle_filter(app, key.code),
                 app::Mode::AddLabel | app::Mode::AddSecret | app::Mode::AddNote => handle_add(app, key),
+                app::Mode::GenPasswordLength | app::Mode::GenPassphraseWords => handle_gen_options(app, key.code),
                 app::Mode::ConfirmRemove => handle_confirm_remove(app, key.code),
             }
         }
@@ -236,19 +237,20 @@ fn handle_filter(app: &mut app::App, code: KeyCode) {
 }
 
 fn handle_add(app: &mut app::App, key: KeyEvent) {
-    // Ctrl+G / Ctrl+P generate a password/passphrase via Keysmith, but
-    // only while typing the secret itself — checked before the generic
-    // Char(c) arm below so a plain 'g'/'p' still types normally in the
-    // label/note steps (and as part of a manually-typed secret elsewhere
-    // in this same step, since those two are Ctrl-modified here).
+    // Ctrl+G / Ctrl+P open the length/word-count prompt before actually
+    // generating, but only while typing the secret itself — checked
+    // before the generic Char(c) arm below so a plain 'g'/'p' still
+    // types normally in the label/note steps (and as part of a
+    // manually-typed secret elsewhere in this same step, since those two
+    // are Ctrl-modified here).
     if app.mode == app::Mode::AddSecret && key.modifiers.contains(KeyModifiers::CONTROL) {
         match key.code {
             KeyCode::Char('g') => {
-                app.generate_secret(keysmith_gen::Kind::Password);
+                app.begin_generate_password_options();
                 return;
             }
             KeyCode::Char('p') => {
-                app.generate_secret(keysmith_gen::Kind::Passphrase);
+                app.begin_generate_passphrase_options();
                 return;
             }
             _ => {}
@@ -266,6 +268,24 @@ fn handle_add(app: &mut app::App, key: KeyEvent) {
             app.input_buffer.pop();
         }
         KeyCode::Char(c) => app.input_buffer.push(c),
+        _ => {}
+    }
+}
+
+fn handle_gen_options(app: &mut app::App, code: KeyCode) {
+    match code {
+        KeyCode::Esc => app.cancel_generate_options(),
+        KeyCode::Enter => match app.mode {
+            app::Mode::GenPasswordLength => app.confirm_password_length(),
+            app::Mode::GenPassphraseWords => app.confirm_passphrase_words(),
+            _ => {}
+        },
+        KeyCode::Backspace => {
+            app.input_buffer.pop();
+        }
+        // Digits only — this field is always a length/word count, no
+        // point letting anything else land in it.
+        KeyCode::Char(c) if c.is_ascii_digit() => app.input_buffer.push(c),
         _ => {}
     }
 }
