@@ -87,7 +87,7 @@ fn draw_input_line(frame: &mut Frame, theme: &Theme, app: &App, area: Rect) {
     let (label, masked) = match app.mode {
         Mode::Filter => ("filter", false),
         Mode::AddLabel => ("label", false),
-        Mode::AddSecret => ("secret", true),
+        Mode::AddSecret => ("secret — ctrl+g generate password, ctrl+p generate passphrase", true),
         Mode::AddNote => ("note (optional)", false),
         Mode::Normal | Mode::ConfirmRemove => unreachable!(),
     };
@@ -171,7 +171,11 @@ fn draw_footer(frame: &mut Frame, theme: &Theme, app: &App, area: Rect) {
                 Style::default().fg(theme.muted),
             )),
             Mode::ConfirmRemove => Line::from(Span::styled("remove this entry? y/n", Style::default().fg(theme.red))),
-            Mode::Filter | Mode::AddLabel | Mode::AddSecret | Mode::AddNote => {
+            Mode::AddSecret => Line::from(Span::styled(
+                "enter confirm  esc cancel  ctrl+g generate password  ctrl+p generate passphrase",
+                Style::default().fg(theme.muted),
+            )),
+            Mode::Filter | Mode::AddLabel | Mode::AddNote => {
                 Line::from(Span::styled("enter confirm  esc cancel", Style::default().fg(theme.muted)))
             }
         }

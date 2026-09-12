@@ -1,11 +1,12 @@
 mod app;
 mod clipboard;
 mod crypto;
+mod keysmith_gen;
 mod ui;
 mod vault;
 
 use clap::{Parser, Subcommand};
-use crossterm::event::{self, Event, KeyCode};
+use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
 use crossterm::execute;
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen};
 use ratatui::backend::CrosstermBackend;
@@ -178,7 +179,7 @@ fn run_event_loop(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &m
             match app.mode {
                 app::Mode::Normal => handle_normal(app, key.code),
                 app::Mode::Filter => handle_filter(app, key.code),
-                app::Mode::AddLabel | app::Mode::AddSecret | app::Mode::AddNote => handle_add(app, key.code),
+                app::Mode::AddLabel | app::Mode::AddSecret | app::Mode::AddNote => handle_add(app, key),
                 app::Mode::ConfirmRemove => handle_confirm_remove(app, key.code),
             }
         }
@@ -234,8 +235,26 @@ fn handle_filter(app: &mut app::App, code: KeyCode) {
     }
 }
 
-fn handle_add(app: &mut app::App, code: KeyCode) {
-    match code {
+fn handle_add(app: &mut app::App, key: KeyEvent) {
+    // Ctrl+G / Ctrl+P generate a password/passphrase via Keysmith, but
+    // only while typing the secret itself — checked before the generic
+    // Char(c) arm below so a plain 'g'/'p' still types normally in the
+    // label/note steps (and as part of a manually-typed secret elsewhere
+    // in this same step, since those two are Ctrl-modified here).
+    if app.mode == app::Mode::AddSecret && key.modifiers.contains(KeyModifiers::CONTROL) {
+        match key.code {
+            KeyCode::Char('g') => {
+                app.generate_secret(keysmith_gen::Kind::Password);
+                return;
+            }
+            KeyCode::Char('p') => {
+                app.generate_secret(keysmith_gen::Kind::Passphrase);
+                return;
+            }
+            _ => {}
+        }
+    }
+    match key.code {
         KeyCode::Esc => app.cancel_add(),
         KeyCode::Enter => match app.mode {
             app::Mode::AddLabel => app.confirm_label(),

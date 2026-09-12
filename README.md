@@ -55,6 +55,21 @@ d               remove the selected entry (y/n to confirm)
 q, Esc          quit
 ```
 
+While entering a new entry's **secret** during `a`, you can either type
+your own or generate one on the spot via
+[Keysmith](https://github.com/darkstardevx/keysmith):
+
+```
+ctrl+g          generate a password (keysmith password --raw --length 24)
+ctrl+p          generate a passphrase (keysmith passphrase --raw)
+```
+
+The generated value lands in the input field exactly like typed text —
+reroll as many times as you want (Ctrl+G/Ctrl+P again), hand-edit it, or
+just press Enter to accept it. Requires `keysmith` installed and on
+`PATH`; if it's missing or fails, the input field is left untouched and
+the status line says why.
+
 Colors come from the active `cybercore` theme (respects `CYBERGRID_THEME`),
 same as every other cybercore-aware tool.
 
@@ -68,14 +83,17 @@ This composes well-audited primitives (`argon2`, `chacha20poly1305` — both rea
 
 ## ✅ Verification
 
-15 unit tests. 10 on the crypto/vault-format layer: round-trip correctness,
+17 unit tests. 10 on the crypto/vault-format layer: round-trip correctness,
 wrong-password rejection, tampered-ciphertext detection (bit-flip in the
 auth tag, confirmed it fails rather than decrypting to garbage silently),
 fresh salt/nonce per save, bad-magic-bytes and truncated-file rejection.
-5 on the TUI's app-state logic (`app.rs`): filter narrowing (case-insensitive,
+7 on the TUI's app-state logic (`app.rs`): filter narrowing (case-insensitive,
 including the empty-result case), the add wizard persisting a real entry to
 disk (reloaded independently to confirm, not just checked in memory) and
-correctly cancelling on an empty secret, and remove actually persisting.
+correctly cancelling on an empty secret, remove actually persisting, and
+Keysmith generation — run against the **real installed `keysmith` binary**,
+not a mock, confirming a generated password is actually 24 characters and
+that generation is a no-op outside the secret-entry step.
 CLI/TUI layer verified for help text and graceful (non-panicking) failure
 when there's no real terminal for the password prompt or for entering
 raw mode — the actual interactive `init`/`add`/`get`/TUI workflow needs a
@@ -84,12 +102,13 @@ real terminal to fully exercise, same limitation as Keysmith's `pwhash`.
 ## 🧩 Layout
 
 ```
-src/crypto.rs      Argon2id key derivation + ChaCha20-Poly1305 encrypt/decrypt
-src/vault.rs       on-disk file format, Entry/VaultData, save/load
-src/clipboard.rs   wl-copy integration (shared by `get --copy` and the TUI)
-src/app.rs         TUI application state
-src/ui.rs          TUI rendering (ratatui, cybercore-themed)
-src/main.rs        CLI + TUI event loop
+src/crypto.rs        Argon2id key derivation + ChaCha20-Poly1305 encrypt/decrypt
+src/vault.rs         on-disk file format, Entry/VaultData, save/load
+src/clipboard.rs     wl-copy integration (shared by `get --copy` and the TUI)
+src/keysmith_gen.rs  shells out to `keysmith ... --raw` for the TUI's add wizard
+src/app.rs           TUI application state
+src/ui.rs            TUI rendering (ratatui, cybercore-themed)
+src/main.rs          CLI + TUI event loop
 ```
 
 ## 🗺 Known limitations
