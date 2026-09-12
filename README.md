@@ -16,6 +16,15 @@ against a keylogger, malware on an already-unlocked session, or someone
 watching over your shoulder while you type the master password. Know
 what you're actually defending against.
 
+The vault file (`~/.local/share/cybervault/vault.cvlt` by default) and
+its directory are locked to **owner-only** (`0600`/`0700`) on every save
+— not just at creation, so a file that predates this or got loosened
+some other way self-heals on the next write. This matters because the
+stated model above names "another user on the machine" as an adversary:
+without this, the default umask on this box would leave the ciphertext
+world-readable (`644`/`755`) — not a break of the encryption itself, but
+needless exposure that contradicts the model.
+
 ## 🚀 Commands
 
 ```bash
@@ -87,15 +96,19 @@ same as every other cybercore-aware tool.
 - **Key derivation**: Argon2id (same primitive as Keysmith's `pwhash`, different mode — `hash_password_into` derives raw key bytes, not a PHC string) turns the master password + a random salt into a 256-bit key
 - **Encryption**: ChaCha20-Poly1305 — authenticated, so a tampered vault file fails to decrypt rather than silently producing garbage
 - **File format**: `MAGIC(4) | salt(16) | nonce(12) | ciphertext`. A fresh random salt and nonce every single save — reusing a nonce with the same key would be a real cryptographic break for this cipher, verified by a test that saves the same data twice and confirms the output differs
+- **File permissions**: `save` chmods the vault file to `0600` and its directory to `0700` on every write, self-healing anything looser rather than only setting the mode at creation
 
 This composes well-audited primitives (`argon2`, `chacha20poly1305` — both real RustCrypto crates) correctly. It does not invent any cryptography.
 
 ## ✅ Verification
 
-25 unit tests. 10 on the crypto/vault-format layer: round-trip correctness,
+27 unit tests. 12 on the crypto/vault-format layer: round-trip correctness,
 wrong-password rejection, tampered-ciphertext detection (bit-flip in the
 auth tag, confirmed it fails rather than decrypting to garbage silently),
-fresh salt/nonce per save, bad-magic-bytes and truncated-file rejection.
+fresh salt/nonce per save, bad-magic-bytes and truncated-file rejection,
+and file/directory permissions actually ending up at `0600`/`0700` after a
+save — including a test that deliberately loosens both to `0644`/`0755`
+first and confirms a subsequent save locks them back down.
 12 on the TUI's app-state logic (`app.rs`): filter narrowing (case-insensitive,
 including the empty-result case), the add wizard persisting a real entry to
 disk (reloaded independently to confirm, not just checked in memory) and

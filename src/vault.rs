@@ -8,6 +8,7 @@ use crate::crypto::{self, KEY_LEN, NONCE_LEN, SALT_LEN};
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
+use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 
 const MAGIC: &[u8; 4] = b"CVL1";
@@ -45,8 +46,19 @@ pub fn save(path: &Path, password: &str, data: &VaultData) -> Result<(), String>
 
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        // Applied unconditionally, not just on first create, so a
+        // directory that pre-dates this fix (or got loosened somehow)
+        // self-heals on the next save rather than staying world-readable.
+        std::fs::set_permissions(parent, std::fs::Permissions::from_mode(0o700)).map_err(|e| e.to_string())?;
     }
-    std::fs::write(path, out).map_err(|e| e.to_string())
+    std::fs::write(path, out).map_err(|e| e.to_string())?;
+    // Same reasoning: `write` creates a new file at the umask-default
+    // mode (typically 644) or leaves an existing file's mode untouched
+    // either way, so the vault — ciphertext, but still something "another
+    // user on the machine" per our own threat model shouldn't be able to
+    // read at all — is locked to owner-only every save, not just at
+    // creation.
+    std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600)).map_err(|e| e.to_string())
 }
 
 pub fn load(path: &Path, password: &str) -> Result<VaultData, String> {
@@ -72,8 +84,15 @@ pub fn load(path: &Path, password: &str) -> Result<VaultData, String> {
 mod tests {
     use super::*;
 
+    /// A private per-test directory (not `temp_dir()` directly): `save`
+    /// now chmods its parent directory to 0700, and several tests here
+    /// deliberately mangle that directory's permissions — sharing `/tmp`
+    /// itself as the "parent" would chmod `/tmp`, and a shared
+    /// subdirectory across tests would race between threads.
     fn scratch_path(name: &str) -> std::path::PathBuf {
-        std::env::temp_dir().join(format!("cybervault-test-{name}-{}.cvlt", std::process::id()))
+        let dir = std::env::temp_dir().join(format!("cybervault-vault-test-{name}-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        dir.join("vault.cvlt")
     }
 
     #[test]
@@ -138,5 +157,43 @@ mod tests {
 
         std::fs::remove_file(&path_a).ok();
         std::fs::remove_file(&path_b).ok();
+    }
+
+    #[test]
+    fn save_locks_the_file_and_its_directory_to_owner_only() {
+        // The vault's own threat model names "another user on the
+        // machine" as an adversary — the file must not be group/world
+        // readable even though its contents are encrypted, since a
+        // world-readable ciphertext is still needless exposure.
+        let path = scratch_path("perms");
+        save(&path, "master-password", &VaultData::default()).unwrap();
+
+        let file_mode = std::fs::metadata(&path).unwrap().permissions().mode() & 0o777;
+        assert_eq!(file_mode, 0o600, "vault file must be owner-read/write only");
+
+        let dir_mode = std::fs::metadata(path.parent().unwrap()).unwrap().permissions().mode() & 0o777;
+        assert_eq!(dir_mode, 0o700, "vault directory must be owner-only");
+
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn save_tightens_permissions_that_were_already_loosened() {
+        // Simulates a pre-existing vault created before this fix (644/755,
+        // the umask-default this box actually produced) — confirms a
+        // later save self-heals it rather than only fixing brand-new files.
+        let path = scratch_path("preexisting-loose");
+        save(&path, "master-password", &VaultData::default()).unwrap();
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o644)).unwrap();
+        std::fs::set_permissions(path.parent().unwrap(), std::fs::Permissions::from_mode(0o755)).unwrap();
+
+        save(&path, "master-password", &VaultData::default()).unwrap();
+
+        let file_mode = std::fs::metadata(&path).unwrap().permissions().mode() & 0o777;
+        assert_eq!(file_mode, 0o600);
+        let dir_mode = std::fs::metadata(path.parent().unwrap()).unwrap().permissions().mode() & 0o777;
+        assert_eq!(dir_mode, 0o700);
+
+        std::fs::remove_file(&path).ok();
     }
 }

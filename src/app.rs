@@ -336,8 +336,13 @@ impl App {
 mod tests {
     use super::*;
 
+    /// A private per-test directory, not `temp_dir()` directly: `save`
+    /// chmods its parent directory to 0700, and `/tmp` itself is owned
+    /// by root — a regular user can't chmod it (EPERM).
     fn scratch_path(name: &str) -> PathBuf {
-        std::env::temp_dir().join(format!("cybervault-app-test-{name}-{}.cvlt", std::process::id()))
+        let dir = std::env::temp_dir().join(format!("cybervault-app-test-{name}-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        dir.join("vault.cvlt")
     }
 
     fn new_app_with(path: PathBuf, entries: &[(&str, &str)]) -> App {
