@@ -487,8 +487,13 @@ mod tests {
     /// Exercises the real `keysmith` binary (installed on this box's
     /// PATH) rather than mocking the subprocess boundary — same
     /// ground-truth-over-assumption discipline as every other
-    /// cross-tool integration this session.
+    /// cross-tool integration this session. Ignored in CI: a fresh
+    /// runner has no access to the private `keysmith` repo, and this
+    /// test asserts on `keysmith`'s real output shape, not a stub --
+    /// `cargo test -- --include-ignored` (what `scripts/release-gates
+    /// full` runs) exercises it locally, where `keysmith` is real.
     #[test]
+    #[ignore = "needs the real keysmith binary on PATH, not available in CI"]
     fn confirm_password_length_generates_a_password_of_the_chosen_length() {
         let path = scratch_path("generate-password");
         let mut app = new_app_with(path.clone(), &[]);
@@ -518,6 +523,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "needs the real keysmith binary on PATH, not available in CI"]
     fn confirm_passphrase_words_generates_the_chosen_word_count() {
         let path = scratch_path("generate-passphrase");
         let mut app = new_app_with(path.clone(), &[]);
