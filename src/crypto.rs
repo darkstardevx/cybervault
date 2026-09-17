@@ -22,16 +22,24 @@ pub fn derive_key(password: &str, salt: &[u8]) -> [u8; KEY_LEN] {
 
 pub fn encrypt(key: &[u8; KEY_LEN], nonce: &[u8; NONCE_LEN], plaintext: &[u8]) -> Vec<u8> {
     let cipher = ChaCha20Poly1305::new(Key::from_slice(key));
-    cipher.encrypt(Nonce::from_slice(nonce), plaintext).expect("encryption with a fresh nonce should not fail")
+    cipher
+        .encrypt(Nonce::from_slice(nonce), plaintext)
+        .expect("encryption with a fresh nonce should not fail")
 }
 
 /// `Err` covers both "wrong password" and "file corrupted/tampered" —
 /// ChaCha20-Poly1305 is authenticated, so both look identical from the
 /// outside (the integrity tag just doesn't verify) and there's no way to
 /// usefully distinguish them without leaking information to an attacker.
-pub fn decrypt(key: &[u8; KEY_LEN], nonce: &[u8; NONCE_LEN], ciphertext: &[u8]) -> Result<Vec<u8>, String> {
+pub fn decrypt(
+    key: &[u8; KEY_LEN],
+    nonce: &[u8; NONCE_LEN],
+    ciphertext: &[u8],
+) -> Result<Vec<u8>, String> {
     let cipher = ChaCha20Poly1305::new(Key::from_slice(key));
-    cipher.decrypt(Nonce::from_slice(nonce), ciphertext).map_err(|_| "wrong password, or the vault file is corrupted/tampered".to_string())
+    cipher
+        .decrypt(Nonce::from_slice(nonce), ciphertext)
+        .map_err(|_| "wrong password, or the vault file is corrupted/tampered".to_string())
 }
 
 #[cfg(test)]
@@ -68,7 +76,10 @@ mod tests {
         let last = ciphertext.len() - 1;
         ciphertext[last] ^= 0xFF; // flip a bit in the auth tag
 
-        assert!(decrypt(&key, &nonce, &ciphertext).is_err(), "tampered ciphertext must fail the integrity check, not silently decrypt garbage");
+        assert!(
+            decrypt(&key, &nonce, &ciphertext).is_err(),
+            "tampered ciphertext must fail the integrity check, not silently decrypt garbage"
+        );
     }
 
     #[test]

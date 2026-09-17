@@ -48,7 +48,12 @@ pub fn draw(frame: &mut Frame, app: &App) {
     let theme = Theme::load();
     let has_input = matches!(
         app.mode,
-        Mode::Filter | Mode::AddLabel | Mode::AddSecret | Mode::AddNote | Mode::GenPasswordLength | Mode::GenPassphraseWords
+        Mode::Filter
+            | Mode::AddLabel
+            | Mode::AddSecret
+            | Mode::AddNote
+            | Mode::GenPasswordLength
+            | Mode::GenPassphraseWords
     );
 
     let chunks = Layout::default()
@@ -79,10 +84,20 @@ pub fn draw(frame: &mut Frame, app: &App) {
 fn draw_title(frame: &mut Frame, theme: &Theme, app: &App, area: Rect) {
     let count = app.data.entries.len();
     let title = Line::from(vec![
-        Span::styled(" CYBERVAULT ", Style::default().fg(theme.purple).add_modifier(Modifier::BOLD)),
-        Span::styled(format!("— {count} entr{} ", if count == 1 { "y" } else { "ies" }), Style::default().fg(theme.muted)),
+        Span::styled(
+            " CYBERVAULT ",
+            Style::default()
+                .fg(theme.purple)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(
+            format!("— {count} entr{} ", if count == 1 { "y" } else { "ies" }),
+            Style::default().fg(theme.muted),
+        ),
     ]);
-    let block = Block::default().borders(Borders::ALL).border_style(Style::default().fg(theme.line));
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(theme.line));
     frame.render_widget(Paragraph::new(title).block(block), area);
 }
 
@@ -90,17 +105,33 @@ fn draw_input_line(frame: &mut Frame, theme: &Theme, app: &App, area: Rect) {
     let (label, masked): (String, bool) = match app.mode {
         Mode::Filter => ("filter".to_string(), false),
         Mode::AddLabel => ("label".to_string(), false),
-        Mode::AddSecret => ("secret — ctrl+g generate password, ctrl+p generate passphrase".to_string(), true),
-        Mode::GenPasswordLength => (format!("password length, 4-128 chars{}", preview_suffix(app)), false),
-        Mode::GenPassphraseWords => (format!("passphrase word count, 3-12{}", preview_suffix(app)), false),
+        Mode::AddSecret => (
+            "secret — ctrl+g generate password, ctrl+p generate passphrase".to_string(),
+            true,
+        ),
+        Mode::GenPasswordLength => (
+            format!("password length, 4-128 chars{}", preview_suffix(app)),
+            false,
+        ),
+        Mode::GenPassphraseWords => (
+            format!("passphrase word count, 3-12{}", preview_suffix(app)),
+            false,
+        ),
         Mode::AddNote => ("note (optional)".to_string(), false),
         Mode::Normal | Mode::ConfirmRemove => unreachable!(),
     };
-    let shown = if masked { "*".repeat(app.input_buffer.chars().count()) } else { app.input_buffer.clone() };
+    let shown = if masked {
+        "*".repeat(app.input_buffer.chars().count())
+    } else {
+        app.input_buffer.clone()
+    };
     let block = Block::default()
         .borders(Borders::ALL)
         .border_style(Style::default().fg(theme.cyan))
-        .title(Span::styled(format!(" {label} "), Style::default().fg(theme.cyan)));
+        .title(Span::styled(
+            format!(" {label} "),
+            Style::default().fg(theme.cyan),
+        ));
     frame.render_widget(Paragraph::new(format!("{shown}_")).block(block), area);
 }
 
@@ -123,7 +154,9 @@ fn draw_list(frame: &mut Frame, theme: &Theme, app: &App, area: Rect) {
         .map(|(row, &idx)| {
             let label = app.labels[idx].clone();
             let style = if Some(row) == selected_idx {
-                Style::default().fg(theme.acid_green).add_modifier(Modifier::BOLD)
+                Style::default()
+                    .fg(theme.acid_green)
+                    .add_modifier(Modifier::BOLD)
             } else {
                 Style::default().fg(theme.white)
             };
@@ -137,7 +170,7 @@ fn draw_list(frame: &mut Frame, theme: &Theme, app: &App, area: Rect) {
         .title(Span::styled(" labels ", Style::default().fg(theme.muted)));
 
     let list = List::new(items).block(block).highlight_symbol("> ");
-    let mut state = app.list_state.clone();
+    let mut state = app.list_state;
     frame.render_stateful_widget(list, area, &mut state);
 }
 
@@ -158,19 +191,37 @@ fn draw_detail(frame: &mut Frame, theme: &Theme, app: &App, area: Rect) {
             } else {
                 Line::from(vec![
                     Span::styled("secret   ", Style::default().fg(theme.muted)),
-                    Span::styled("•".repeat(entry.secret.chars().count().min(32)), Style::default().fg(theme.muted)),
+                    Span::styled(
+                        "•".repeat(entry.secret.chars().count().min(32)),
+                        Style::default().fg(theme.muted),
+                    ),
                     Span::styled("  (v to reveal)", Style::default().fg(theme.muted)),
                 ])
             };
             vec![
-                Line::from(vec![Span::styled("label    ", Style::default().fg(theme.muted)), Span::styled(label.to_string(), Style::default().fg(theme.cyan).add_modifier(Modifier::BOLD))]),
-                Line::from(vec![Span::styled("created  ", Style::default().fg(theme.muted)), Span::raw(entry.created.clone())]),
-                Line::from(vec![Span::styled("note     ", Style::default().fg(theme.muted)), Span::raw(entry.note.clone().unwrap_or_default())]),
+                Line::from(vec![
+                    Span::styled("label    ", Style::default().fg(theme.muted)),
+                    Span::styled(
+                        label.to_string(),
+                        Style::default().fg(theme.cyan).add_modifier(Modifier::BOLD),
+                    ),
+                ]),
+                Line::from(vec![
+                    Span::styled("created  ", Style::default().fg(theme.muted)),
+                    Span::raw(entry.created.clone()),
+                ]),
+                Line::from(vec![
+                    Span::styled("note     ", Style::default().fg(theme.muted)),
+                    Span::raw(entry.note.clone().unwrap_or_default()),
+                ]),
                 Line::from(""),
                 secret_line,
             ]
         }
-        None => vec![Line::from(Span::styled("(no entry selected — 'a' to add one)", Style::default().fg(theme.muted)))],
+        None => vec![Line::from(Span::styled(
+            "(no entry selected — 'a' to add one)",
+            Style::default().fg(theme.muted),
+        ))],
     };
 
     frame.render_widget(Paragraph::new(lines).block(block), area);
@@ -178,24 +229,32 @@ fn draw_detail(frame: &mut Frame, theme: &Theme, app: &App, area: Rect) {
 
 fn draw_footer(frame: &mut Frame, theme: &Theme, app: &App, area: Rect) {
     let text = if let Some(status) = &app.status {
-        Line::from(Span::styled(status.clone(), Style::default().fg(theme.acid_green)))
+        Line::from(Span::styled(
+            status.clone(),
+            Style::default().fg(theme.acid_green),
+        ))
     } else {
         match app.mode {
             Mode::Normal => Line::from(Span::styled(
                 "j/k move  /filter  v reveal  c copy  a add  d delete  q quit",
                 Style::default().fg(theme.muted),
             )),
-            Mode::ConfirmRemove => Line::from(Span::styled("remove this entry? y/n", Style::default().fg(theme.red))),
+            Mode::ConfirmRemove => Line::from(Span::styled(
+                "remove this entry? y/n",
+                Style::default().fg(theme.red),
+            )),
             Mode::AddSecret => Line::from(Span::styled(
                 "enter confirm  esc cancel  ctrl+g generate password  ctrl+p generate passphrase",
                 Style::default().fg(theme.muted),
             )),
-            Mode::GenPasswordLength | Mode::GenPassphraseWords => {
-                Line::from(Span::styled("enter generate  esc cancel (keeps what you had)", Style::default().fg(theme.muted)))
-            }
-            Mode::Filter | Mode::AddLabel | Mode::AddNote => {
-                Line::from(Span::styled("enter confirm  esc cancel", Style::default().fg(theme.muted)))
-            }
+            Mode::GenPasswordLength | Mode::GenPassphraseWords => Line::from(Span::styled(
+                "enter generate  esc cancel (keeps what you had)",
+                Style::default().fg(theme.muted),
+            )),
+            Mode::Filter | Mode::AddLabel | Mode::AddNote => Line::from(Span::styled(
+                "enter confirm  esc cancel",
+                Style::default().fg(theme.muted),
+            )),
         }
     };
     frame.render_widget(Paragraph::new(text).alignment(Alignment::Left), area);

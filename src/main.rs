@@ -8,7 +8,9 @@ mod vault;
 use clap::{Parser, Subcommand};
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
 use crossterm::execute;
-use crossterm::terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen};
+use crossterm::terminal::{
+    disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
+};
 use ratatui::backend::CrosstermBackend;
 use ratatui::Terminal;
 use std::io::{self, IsTerminal, Read};
@@ -17,7 +19,11 @@ use std::process::{Command, ExitCode};
 use vault::{Entry, VaultData};
 
 #[derive(Parser, Debug)]
-#[command(name = "cybervault", version = "0.1.0", about = "Encrypted secrets vault")]
+#[command(
+    name = "cybervault",
+    version = "0.1.0",
+    about = "Encrypted secrets vault"
+)]
 struct Args {
     /// Bare invocation (no subcommand) launches the interactive TUI.
     #[command(subcommand)]
@@ -67,7 +73,11 @@ fn default_vault_path() -> PathBuf {
 }
 
 fn banner(color_on: bool) {
-    let (c, r) = if color_on { (cybercore::palette::purple(), cybercore::palette::RESET) } else { (String::new(), "") };
+    let (c, r) = if color_on {
+        (cybercore::palette::purple(), cybercore::palette::RESET)
+    } else {
+        (String::new(), "")
+    };
     println!(
         "{c}
    ___      _              __     __         _ _
@@ -83,7 +93,8 @@ fn banner(color_on: bool) {
 fn read_master_password(confirm: bool) -> Result<String, String> {
     let pw = rpassword::prompt_password("Master password: ").map_err(|e| e.to_string())?;
     if confirm {
-        let confirm_pw = rpassword::prompt_password("Confirm master password: ").map_err(|e| e.to_string())?;
+        let confirm_pw =
+            rpassword::prompt_password("Confirm master password: ").map_err(|e| e.to_string())?;
         if pw != confirm_pw {
             return Err("passwords did not match".to_string());
         }
@@ -98,7 +109,9 @@ fn read_secret_to_store() -> Result<String, String> {
         rpassword::prompt_password("Secret to store: ").map_err(|e| e.to_string())
     } else {
         let mut buf = String::new();
-        std::io::stdin().read_to_string(&mut buf).map_err(|e| e.to_string())?;
+        std::io::stdin()
+            .read_to_string(&mut buf)
+            .map_err(|e| e.to_string())?;
         Ok(buf.trim_end_matches(['\n', '\r']).to_string())
     }
 }
@@ -120,7 +133,10 @@ fn run_tui(path: PathBuf, color_on: bool) -> ExitCode {
     banner(color_on);
 
     if !path.exists() {
-        eprintln!("cybervault: no vault at {} — run `cybervault init` first", path.display());
+        eprintln!(
+            "cybervault: no vault at {} — run `cybervault init` first",
+            path.display()
+        );
         return ExitCode::FAILURE;
     }
     let password = match read_master_password(false) {
@@ -163,7 +179,10 @@ fn run_tui(path: PathBuf, color_on: bool) -> ExitCode {
     }
 }
 
-fn run_event_loop(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut app::App) -> io::Result<()> {
+fn run_event_loop(
+    terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
+    app: &mut app::App,
+) -> io::Result<()> {
     loop {
         terminal.draw(|frame| ui::draw(frame, app))?;
 
@@ -179,8 +198,12 @@ fn run_event_loop(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &m
             match app.mode {
                 app::Mode::Normal => handle_normal(app, key.code),
                 app::Mode::Filter => handle_filter(app, key.code),
-                app::Mode::AddLabel | app::Mode::AddSecret | app::Mode::AddNote => handle_add(app, key),
-                app::Mode::GenPasswordLength | app::Mode::GenPassphraseWords => handle_gen_options(app, key.code),
+                app::Mode::AddLabel | app::Mode::AddSecret | app::Mode::AddNote => {
+                    handle_add(app, key)
+                }
+                app::Mode::GenPasswordLength | app::Mode::GenPassphraseWords => {
+                    handle_gen_options(app, key.code)
+                }
                 app::Mode::ConfirmRemove => handle_confirm_remove(app, key.code),
             }
         }
@@ -204,10 +227,8 @@ fn handle_normal(app: &mut app::App, code: KeyCode) {
         KeyCode::Char('v') | KeyCode::Enter => app.toggle_reveal(),
         KeyCode::Char('c') => app.copy_selected(),
         KeyCode::Char('a') => app.begin_add(),
-        KeyCode::Char('d') => {
-            if app.selected_entry().is_some() {
-                app.mode = app::Mode::ConfirmRemove;
-            }
+        KeyCode::Char('d') if app.selected_entry().is_some() => {
+            app.mode = app::Mode::ConfirmRemove;
         }
         _ => {}
     }
@@ -355,7 +376,14 @@ fn main() -> ExitCode {
                     return ExitCode::FAILURE;
                 }
             };
-            data.entries.insert(label.clone(), Entry { secret, created: today(), note });
+            data.entries.insert(
+                label.clone(),
+                Entry {
+                    secret,
+                    created: today(),
+                    note,
+                },
+            );
             match vault::save(&path, &password, &data) {
                 Ok(()) => {
                     println!("cybervault: saved \"{label}\"");

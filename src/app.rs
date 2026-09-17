@@ -98,7 +98,11 @@ impl App {
         if self.filtered.is_empty() {
             self.list_state.select(None);
         } else {
-            let clamped = self.list_state.selected().unwrap_or(0).min(self.filtered.len() - 1);
+            let clamped = self
+                .list_state
+                .selected()
+                .unwrap_or(0)
+                .min(self.filtered.len() - 1);
             self.list_state.select(Some(clamped));
         }
     }
@@ -140,8 +144,14 @@ impl App {
     }
 
     pub fn toggle_reveal(&mut self) {
-        let Some(label) = self.selected_label() else { return };
-        self.revealed = if self.revealed.as_deref() == Some(label) { None } else { Some(label.to_string()) };
+        let Some(label) = self.selected_label() else {
+            return;
+        };
+        self.revealed = if self.revealed.as_deref() == Some(label) {
+            None
+        } else {
+            Some(label.to_string())
+        };
     }
 
     pub fn copy_selected(&mut self) {
@@ -197,19 +207,34 @@ impl App {
     /// Called on Enter while in `AddNote` — the last step. An empty note
     /// is stored as `None`, not an empty string.
     pub fn confirm_note_and_save(&mut self) {
-        let (Some(label), Some(secret)) = (self.pending_label.take(), self.pending_secret.take()) else {
+        let (Some(label), Some(secret)) = (self.pending_label.take(), self.pending_secret.take())
+        else {
             self.mode = Mode::Normal;
             return;
         };
-        let note = if self.input_buffer.trim().is_empty() { None } else { Some(self.input_buffer.trim().to_string()) };
+        let note = if self.input_buffer.trim().is_empty() {
+            None
+        } else {
+            Some(self.input_buffer.trim().to_string())
+        };
         self.input_buffer.clear();
         self.mode = Mode::Normal;
 
         let is_new = !self.data.entries.contains_key(&label);
-        self.data.entries.insert(label.clone(), Entry { secret, created: crate::today(), note });
+        self.data.entries.insert(
+            label.clone(),
+            Entry {
+                secret,
+                created: crate::today(),
+                note,
+            },
+        );
         match self.save_vault() {
             Ok(()) => {
-                self.status = Some(format!("{} \"{label}\"", if is_new { "added" } else { "updated" }));
+                self.status = Some(format!(
+                    "{} \"{label}\"",
+                    if is_new { "added" } else { "updated" }
+                ));
                 self.labels = self.data.entries.keys().cloned().collect();
                 self.apply_filter();
                 if let Some(pos) = self.filtered.iter().position(|&i| self.labels[i] == label) {
@@ -296,7 +321,9 @@ impl App {
         match crate::keysmith_gen::generate(&kind) {
             Ok(secret) => {
                 self.input_buffer = secret;
-                self.status = Some("generated via keysmith — ctrl+g/ctrl+p to reroll, enter to accept".to_string());
+                self.status = Some(
+                    "generated via keysmith — ctrl+g/ctrl+p to reroll, enter to accept".to_string(),
+                );
             }
             Err(e) => {
                 self.input_buffer = std::mem::take(&mut self.saved_secret_buffer);
@@ -340,7 +367,8 @@ mod tests {
     /// chmods its parent directory to 0700, and `/tmp` itself is owned
     /// by root — a regular user can't chmod it (EPERM).
     fn scratch_path(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("cybervault-app-test-{name}-{}", std::process::id()));
+        let dir =
+            std::env::temp_dir().join(format!("cybervault-app-test-{name}-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         dir.join("vault.cvlt")
     }
@@ -348,7 +376,14 @@ mod tests {
     fn new_app_with(path: PathBuf, entries: &[(&str, &str)]) -> App {
         let mut data = VaultData::default();
         for (label, secret) in entries {
-            data.entries.insert(label.to_string(), Entry { secret: secret.to_string(), created: "2026-01-01".to_string(), note: None });
+            data.entries.insert(
+                label.to_string(),
+                Entry {
+                    secret: secret.to_string(),
+                    created: "2026-01-01".to_string(),
+                    note: None,
+                },
+            );
         }
         crate::vault::save(&path, "test-password", &data).unwrap();
         App::new(path, "test-password".to_string(), data)
@@ -357,12 +392,19 @@ mod tests {
     #[test]
     fn filter_narrows_to_matching_labels_case_insensitively() {
         let path = scratch_path("filter");
-        let mut app = new_app_with(path.clone(), &[("github", "a"), ("gitlab", "b"), ("aws-root", "c")]);
+        let mut app = new_app_with(
+            path.clone(),
+            &[("github", "a"), ("gitlab", "b"), ("aws-root", "c")],
+        );
 
         app.filter_text = "GIT".to_string();
         app.apply_filter();
 
-        let matched: Vec<&str> = app.filtered.iter().map(|&i| app.labels[i].as_str()).collect();
+        let matched: Vec<&str> = app
+            .filtered
+            .iter()
+            .map(|&i| app.labels[i].as_str())
+            .collect();
         assert_eq!(matched, vec!["github", "gitlab"]);
         std::fs::remove_file(&path).ok();
     }
@@ -404,7 +446,10 @@ mod tests {
         // persisted, not just held in the in-memory `data`.
         let reloaded = crate::vault::load(&path, "test-password").unwrap();
         assert_eq!(reloaded.entries["newlabel"].secret, "s3cr3t");
-        assert_eq!(reloaded.entries["newlabel"].note.as_deref(), Some("test note"));
+        assert_eq!(
+            reloaded.entries["newlabel"].note.as_deref(),
+            Some("test note")
+        );
         std::fs::remove_file(&path).ok();
     }
 
@@ -459,8 +504,16 @@ mod tests {
 
         assert_eq!(app.mode, Mode::AddSecret);
         assert_eq!(app.gen_password_length, 32);
-        assert_eq!(app.input_buffer.chars().count(), 32, "keysmith password --raw --length 32 should be exactly 32 chars");
-        assert!(app.status.as_deref().unwrap_or_default().contains("generated via keysmith"));
+        assert_eq!(
+            app.input_buffer.chars().count(),
+            32,
+            "keysmith password --raw --length 32 should be exactly 32 chars"
+        );
+        assert!(app
+            .status
+            .as_deref()
+            .unwrap_or_default()
+            .contains("generated via keysmith"));
         std::fs::remove_file(&path).ok();
     }
 
@@ -479,7 +532,11 @@ mod tests {
 
         assert_eq!(app.mode, Mode::AddSecret);
         assert_eq!(app.gen_passphrase_words, 4);
-        assert_eq!(app.input_buffer.split('-').count(), 4, "4 words joined by the default '-' separator");
+        assert_eq!(
+            app.input_buffer.split('-').count(),
+            4,
+            "4 words joined by the default '-' separator"
+        );
         std::fs::remove_file(&path).ok();
     }
 
@@ -495,8 +552,16 @@ mod tests {
         app.input_buffer = "9999".to_string();
         app.confirm_password_length();
 
-        assert_eq!(app.mode, Mode::GenPasswordLength, "should stay on the prompt rather than silently falling back");
-        assert!(app.status.as_deref().unwrap_or_default().contains("enter a length"));
+        assert_eq!(
+            app.mode,
+            Mode::GenPasswordLength,
+            "should stay on the prompt rather than silently falling back"
+        );
+        assert!(app
+            .status
+            .as_deref()
+            .unwrap_or_default()
+            .contains("enter a length"));
         std::fs::remove_file(&path).ok();
     }
 
@@ -561,7 +626,10 @@ mod tests {
         app.input_buffer = "48".to_string();
         let (bits_48, _) = app.gen_options_preview().unwrap();
 
-        assert!(bits_48 > bits_24, "doubling the length should increase the entropy estimate");
+        assert!(
+            bits_48 > bits_24,
+            "doubling the length should increase the entropy estimate"
+        );
 
         app.input_buffer = "not-a-number".to_string();
         assert!(app.gen_options_preview().is_none());

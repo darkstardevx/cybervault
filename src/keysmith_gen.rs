@@ -22,15 +22,28 @@ pub enum Kind {
 
 pub fn generate(kind: &Kind) -> Result<String, String> {
     let args: Vec<String> = match kind {
-        Kind::Password(length) => vec!["password".into(), "--raw".into(), "--length".into(), length.to_string()],
-        Kind::Passphrase(words) => vec!["passphrase".into(), "--raw".into(), "--words".into(), words.to_string()],
+        Kind::Password(length) => vec![
+            "password".into(),
+            "--raw".into(),
+            "--length".into(),
+            length.to_string(),
+        ],
+        Kind::Passphrase(words) => vec![
+            "passphrase".into(),
+            "--raw".into(),
+            "--words".into(),
+            words.to_string(),
+        ],
     };
     let output = Command::new("keysmith")
         .args(&args)
         .output()
         .map_err(|e| format!("failed to run keysmith — is it installed? ({e})"))?;
     if !output.status.success() {
-        return Err(format!("keysmith exited with an error: {}", String::from_utf8_lossy(&output.stderr).trim()));
+        return Err(format!(
+            "keysmith exited with an error: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
     }
     let secret = String::from_utf8_lossy(&output.stdout).trim().to_string();
     if secret.is_empty() {
