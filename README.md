@@ -1,11 +1,29 @@
 # 🔐 CyberVault
 
+[![CI](https://github.com/darkstardevx/cybervault/actions/workflows/ci.yml/badge.svg)](https://github.com/darkstardevx/cybervault/actions/workflows/ci.yml)
+[![Release](https://github.com/darkstardevx/cybervault/actions/workflows/release.yml/badge.svg)](https://github.com/darkstardevx/cybervault/actions/workflows/release.yml)
+
 `Rust` · `Argon2id` · `ChaCha20-Poly1305`
 
 **Encrypted secrets vault.** Master-password unlock, one file, authenticated
 encryption — for storing generated passwords/passphrases (from
 [Keysmith](https://github.com/darkstardevx/keysmith)) or anything else you
 don't want sitting around in plaintext.
+
+## 📦 Install
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/darkstardevx/cybervault/main/install.sh | sh
+```
+
+Downloads the latest release for your platform (Linux or macOS, x86_64
+or aarch64), verifies its SHA-256 checksum, and installs `cybervault`
+to `~/.local/bin`. Or build from source with `cargo build --release`.
+
+Install [Keysmith](https://github.com/darkstardevx/keysmith) too if you
+want the TUI's Ctrl+G/Ctrl+P generate-in-place feature — the TUI shells
+out to `keysmith --raw` on `PATH`, so without it the rest of CyberVault
+works fine, generation-on-the-spot just isn't available.
 
 ## 🎯 Threat model — read this before trusting it with anything
 
@@ -140,7 +158,7 @@ src/main.rs          CLI + TUI event loop
 ## 🗺 Known limitations
 
 - No re-keying (changing the master password re-encrypts with a new key derived from the new password, but there's no dedicated `change-password` command yet — would need to load with the old password and save with the new one manually today)
-- Clipboard support is Wayland-only (`wl-copy`)
+- Clipboard support: `wl-copy` on Linux (Wayland only — no X11 fallback), `pbcopy` on macOS
 
 ## 📄 License
 

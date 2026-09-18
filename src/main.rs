@@ -56,7 +56,7 @@ enum Commands {
     /// Print (or copy) one entry's secret.
     Get {
         label: String,
-        /// Copy to the clipboard via wl-copy instead of printing.
+        /// Copy to the clipboard instead of printing (wl-copy on Linux, pbcopy on macOS).
         #[arg(long)]
         copy: bool,
     },
