@@ -1,0 +1,380 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CyberVault — encrypted secrets vault</title>
+<meta name="description" content="Master-password unlock, one file, authenticated encryption. A Rust CLI + TUI for secrets you don't want sitting around in plaintext.">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMjggMTI4Ij4KICAKICA8ZGVmcz48L2RlZnM+CiAgPHJlY3Qgd2lkdGg9IjEyOCIgaGVpZ2h0PSIxMjgiIHJ4PSIyOCIgZmlsbD0iIzA4MDcwYSIvPgogIDxwYXRoIGQ9Ik0gMjIuMCAxMS41IEwgODcuNSAxMS41IEwgMTA2LjAgMzAuMCBMIDEwNi4wIDExNi41IEwgMjIuMCAxMTYuNSBaIiBmaWxsPSIjMTQxMDE4IiBzdHJva2U9IiNmNWYyZWYiIHN0cm9rZS13aWR0aD0iMi4xIi8+PHBhdGggZD0iTSA4Ny41IDExLjUgTCA4Ny41IDMwLjAgTCAxMDYuMCAzMC4wIiBmaWxsPSJub25lIiBzdHJva2U9IiNmNWYyZWYiIHN0cm9rZS13aWR0aD0iMS43Ii8+PGNpcmNsZSBjeD0iNjQuMCIgY3k9IjExNC4wIiByPSIyMi43IiBmaWxsPSIjZTBhODQwIi8+PGNpcmNsZSBjeD0iNjQuMCIgY3k9IjExNC4wIiByPSIyMi43IiBmaWxsPSJub25lIiBzdHJva2U9IiMwODA3MGEiIHN0cm9rZS13aWR0aD0iMS4zIi8+PHJlY3QgeD0iNTYuMCIgeT0iMTEyLjMiIHdpZHRoPSIxNi4wIiBoZWlnaHQ9IjEyLjYiIHJ4PSIyLjEiIGZpbGw9IiMwODA3MGEiLz48cGF0aCBkPSJNIDU4LjUgMTEyLjMgTCA1OC41IDEwNi4wIEEgNS41IDUuNSAwIDAgMSA2OS41IDEwNi4wIEwgNjkuNSAxMTIuMyIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjMDgwNzBhIiBzdHJva2Utd2lkdGg9IjIuMSIvPgo8L3N2Zz4=">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@400;500;600;700&family=Roboto+Mono:wght@400;500;700&display=swap');
+
+  :root {
+    --void: #08070a;
+    --panel: 20, 16, 24;
+    --line: #2a2333;
+    --line2: #1c1621;
+    --gold: #e0a840;
+    --ice: #5ec8e6;
+    --white: #f5f2ef;
+    --muted: #8f88a3;
+    --dim: #4a4457;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  ::selection { background: rgba(224,168,64,.28); color: #fff; }
+
+  body {
+    margin: 0;
+    background:
+      radial-gradient(900px 500px at 92% -10%, rgba(224,168,64,.05), transparent 60%),
+      radial-gradient(700px 420px at 4% 105%, rgba(94,200,230,.06), transparent 60%),
+      var(--void);
+    background-attachment: fixed;
+    color: #cfc9dc;
+    font-family: 'Zilla Slab', Georgia, serif;
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  img { max-width: 100%; }
+  a { color: inherit; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding-inline: 24px; }
+  h1, h2, h3 { font-family: 'Zilla Slab', serif; color: var(--white); margin: 0; font-weight: 700; text-wrap: balance; }
+  p { margin: 0; }
+  code { font-family: 'Roboto Mono', monospace; background: rgba(255,255,255,.05); padding: 1px 5px; border-radius: 3px; font-size: .87em; }
+  .mono { font-family: 'Roboto Mono', monospace; }
+
+  /* ---------- companion banner ---------- */
+  .companion-banner {
+    background: linear-gradient(90deg, rgba(224,168,64,.1), rgba(94,200,230,.07));
+    border-bottom: 1px solid var(--line);
+    text-align: center;
+    padding: 9px 16px;
+    font-size: 13px;
+    color: var(--muted);
+    font-family: 'Roboto Mono', monospace;
+  }
+  .companion-banner a { color: var(--gold); text-decoration: none; font-weight: 600; }
+  .companion-banner a:hover { text-decoration: underline; }
+
+  /* ---------- nav ---------- */
+  nav {
+    position: sticky; top: 0; z-index: 40;
+    backdrop-filter: blur(12px);
+    background: rgba(8,7,10,.82);
+    border-bottom: 1px solid var(--line);
+  }
+  nav .wrap { display: flex; align-items: center; justify-content: space-between; height: 60px; }
+  .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+  .brand img { width: 26px; height: 26px; }
+  .brand span { font-family: 'Zilla Slab', serif; font-weight: 700; color: var(--white); font-size: 17px; letter-spacing: .01em; }
+  .navlinks { display: flex; align-items: center; gap: 20px; }
+  .navlinks a.navlink { font-family: 'Roboto Mono', monospace; font-size: 12.5px; color: var(--muted); text-decoration: none; font-weight: 500; }
+  .navlinks a.navlink:hover { color: var(--white); }
+
+  /* ---------- buttons ---------- */
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 10px 18px; border-radius: 6px;
+    font-family: 'Roboto Mono', monospace; font-weight: 600; font-size: 13.5px;
+    text-decoration: none; cursor: pointer; border: 1px solid transparent;
+  }
+  .btn-primary { background: rgba(224,168,64,.16); border-color: var(--gold); color: #fff; }
+  .btn-primary:hover { background: rgba(224,168,64,.28); }
+  .btn-ghost { background: rgba(255,255,255,.03); border-color: var(--line); color: #cfc9dc; }
+  .btn-ghost:hover { border-color: #3a3145; background: rgba(255,255,255,.06); }
+
+  .pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 5px 12px; border-radius: 999px;
+    font-family: 'Roboto Mono', monospace; font-size: 11px; letter-spacing: .04em;
+    background: rgba(255,255,255,.03); border: 1px solid var(--line); color: #b3a89c;
+  }
+  .pill.ice { border-color: rgba(94,200,230,.4); color: var(--ice); background: rgba(94,200,230,.06); }
+  .pill-row { display: flex; flex-wrap: wrap; gap: 8px; }
+
+  /* ---------- panel (chrome system) ---------- */
+  .panel {
+    position: relative; border-radius: 12px; border: 1px solid var(--line);
+    background: linear-gradient(160deg, rgba(20,16,24,.92), rgba(8,7,10,.95));
+    box-shadow: 0 26px 60px -34px rgba(0,0,0,.85);
+  }
+  .panel-bar { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; border-bottom: 1px solid var(--line2); }
+  .panel-id { display: flex; align-items: center; gap: 9px; }
+  .seal-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 0 3px rgba(224,168,64,.18); }
+  .panel-label { font-family: 'Roboto Mono', monospace; font-size: 11px; letter-spacing: .05em; color: var(--muted); text-transform: uppercase; }
+  .panel-body { padding: 18px 20px; }
+  .panel-body pre { margin: 0; font-family: 'Roboto Mono', monospace; font-size: 12.6px; line-height: 1.8; color: #cfc9dc; white-space: pre; overflow-x: auto; }
+  .panel .t-muted { color: var(--muted); }
+  .panel .t-gold { color: var(--gold); }
+  .panel .t-ice { color: var(--ice); }
+  .panel .t-white { color: var(--white); font-weight: 600; }
+  .panel .t-dim { color: var(--dim); }
+
+  /* ---------- hero ---------- */
+  .hero { padding: 56px 0 18px; }
+  .hero-grid { display: grid; grid-template-columns: 1.1fr .9fr; gap: 46px; align-items: center; }
+  .hero h1 { font-size: 44px; line-height: 1.1; margin-bottom: 16px; letter-spacing: -.005em; }
+  .hero-sub { font-size: 16.5px; color: var(--muted); max-width: 48ch; margin-bottom: 24px; line-height: 1.65; font-family: 'Zilla Slab', serif; }
+  .hero-cta { display: flex; gap: 12px; margin-bottom: 6px; flex-wrap: wrap; }
+  .seal-visual { display: flex; justify-content: center; }
+  .seal-visual svg { width: 100%; max-width: 260px; }
+
+  /* ---------- sections ---------- */
+  section.feature { padding: 46px 0 6px; }
+  .f-kicker { font-family: 'Roboto Mono', monospace; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--gold); margin-bottom: 10px; }
+  .f-grid { display: grid; grid-template-columns: .86fr 1.14fr; gap: 48px; align-items: center; }
+  .f-grid.rev { grid-template-columns: 1.14fr .86fr; }
+  .f-grid.rev .f-copy { order: 2; } .f-grid.rev .f-vis { order: 1; }
+  .f-copy h2 { font-size: 25px; margin-bottom: 12px; }
+  .f-copy p { color: var(--muted); font-size: 14.8px; margin-bottom: 10px; font-family: 'Zilla Slab', serif; }
+  .f-copy p:last-child { margin-bottom: 0; }
+  .f-copy strong { color: var(--white); }
+  .kbd { display: inline-block; padding: 1px 7px; border: 1px solid var(--line); border-radius: 4px; font-family: 'Roboto Mono', monospace; font-size: 12px; color: var(--white); background: rgba(255,255,255,.03); }
+
+  .seam { display: flex; align-items: center; gap: 8px; padding: 46px 0 0; }
+  .seam .line { flex: 1; height: 1px; background: repeating-linear-gradient(90deg, var(--line) 0 6px, transparent 6px 16px); }
+  .seam .dot { width: 4px; height: 4px; border-radius: 50%; background: var(--line); }
+
+  /* ---------- install ---------- */
+  .install { padding: 60px 0 54px; }
+  .install-head { text-align: center; max-width: 560px; margin: 0 auto 26px; }
+  .install-head h2 { font-size: 28px; margin-bottom: 10px; }
+  .install-head p { color: var(--muted); font-size: 14.5px; font-family: 'Zilla Slab', serif; }
+  .install-card { max-width: 640px; margin: 0 auto; }
+  .os-tabs { display: flex; gap: 6px; padding: 12px 14px 0; }
+  .os-tab { padding: 7px 14px; border-radius: 7px; font-family: 'Roboto Mono', monospace; font-size: 11.5px; color: var(--muted); background: transparent; border: 1px solid transparent; cursor: pointer; }
+  .os-tab.active { background: rgba(224,168,64,.14); border-color: var(--gold); color: #fff; }
+  .cmd-row { display: flex; align-items: center; gap: 10px; margin: 14px 16px 16px; padding: 12px 8px 12px 16px; background: rgba(0,0,0,.3); border: 1px solid var(--line2); border-radius: 8px; }
+  .cmd-row .prompt { color: var(--gold); font-family: 'Roboto Mono', monospace; font-size: 13px; flex-shrink: 0; }
+  .cmd-row code { flex: 1; font-size: 12.6px; background: none; padding: 0; overflow-x: auto; white-space: nowrap; }
+  .copy-btn { flex-shrink: 0; width: 32px; height: 32px; border-radius: 7px; border: 1px solid var(--line2); background: rgba(255,255,255,.03); color: var(--muted); display: flex; align-items: center; justify-content: center; cursor: pointer; }
+  .copy-btn:hover { border-color: var(--line); color: #fff; }
+  .copy-btn.copied { color: var(--gold); border-color: var(--gold); }
+  .install-note { font-size: 11.5px; color: var(--dim); padding: 0 16px 14px; text-align: center; font-family: 'Roboto Mono', monospace; }
+  .dl-count { text-align: center; font-family: 'Roboto Mono', monospace; font-size: 12px; color: var(--muted); margin-top: 14px; }
+  .install-more { text-align: center; margin-top: 14px; }
+  .install-more a { font-size: 12.5px; color: var(--muted); text-decoration: none; border-bottom: 1px dotted var(--line); font-family: 'Roboto Mono', monospace; }
+  .install-more a:hover { color: var(--gold); border-color: var(--gold); }
+  .install-companion { text-align: center; margin-top: 22px; padding-top: 20px; border-top: 1px dashed var(--line); }
+  .install-companion p { font-size: 13px; color: var(--muted); margin-bottom: 10px; font-family: 'Roboto Mono', monospace; }
+  .install-companion code { font-size: 12px; }
+
+  footer { border-top: 1px solid var(--line); padding: 28px 0 40px; margin-top: 20px; }
+  .foot-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+  .foot-brand { display: flex; align-items: center; gap: 9px; font-size: 12.5px; color: var(--muted); font-family: 'Roboto Mono', monospace; }
+  .foot-brand img { width: 18px; height: 18px; }
+  .foot-links { display: flex; gap: 16px; }
+  .foot-links a { font-size: 12px; color: var(--muted); text-decoration: none; font-weight: 500; font-family: 'Roboto Mono', monospace; }
+  .foot-links a:hover { color: #fff; }
+  .foot-family { font-family: 'Roboto Mono', monospace; font-size: 10px; letter-spacing: .06em; color: #332a3d; text-transform: uppercase; }
+
+  @media (max-width: 860px) {
+    .hero-grid, .f-grid, .f-grid.rev { grid-template-columns: 1fr; gap: 28px; }
+    .f-grid.rev .f-copy, .f-grid.rev .f-vis { order: initial; }
+    .hero h1 { font-size: 32px; }
+    .navlinks .navlink { display: none; }
+  }
+</style>
+
+<div class="companion-banner">
+  Pairs with <a href="https://github.com/darkstardevx/keysmith" target="_blank" rel="noopener">Keysmith</a> — generate strong passwords/passphrases straight into the vault.
+</div>
+
+<nav>
+  <div class="wrap">
+    <a class="brand" href="#">
+      <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMjggMTI4Ij4KICAKICA8ZGVmcz48L2RlZnM+CiAgPHJlY3Qgd2lkdGg9IjEyOCIgaGVpZ2h0PSIxMjgiIHJ4PSIyOCIgZmlsbD0iIzA4MDcwYSIvPgogIDxwYXRoIGQ9Ik0gMjIuMCAxMS41IEwgODcuNSAxMS41IEwgMTA2LjAgMzAuMCBMIDEwNi4wIDExNi41IEwgMjIuMCAxMTYuNSBaIiBmaWxsPSIjMTQxMDE4IiBzdHJva2U9IiNmNWYyZWYiIHN0cm9rZS13aWR0aD0iMi4xIi8+PHBhdGggZD0iTSA4Ny41IDExLjUgTCA4Ny41IDMwLjAgTCAxMDYuMCAzMC4wIiBmaWxsPSJub25lIiBzdHJva2U9IiNmNWYyZWYiIHN0cm9rZS13aWR0aD0iMS43Ii8+PGNpcmNsZSBjeD0iNjQuMCIgY3k9IjExNC4wIiByPSIyMi43IiBmaWxsPSIjZTBhODQwIi8+PGNpcmNsZSBjeD0iNjQuMCIgY3k9IjExNC4wIiByPSIyMi43IiBmaWxsPSJub25lIiBzdHJva2U9IiMwODA3MGEiIHN0cm9rZS13aWR0aD0iMS4zIi8+PHJlY3QgeD0iNTYuMCIgeT0iMTEyLjMiIHdpZHRoPSIxNi4wIiBoZWlnaHQ9IjEyLjYiIHJ4PSIyLjEiIGZpbGw9IiMwODA3MGEiLz48cGF0aCBkPSJNIDU4LjUgMTEyLjMgTCA1OC41IDEwNi4wIEEgNS41IDUuNSAwIDAgMSA2OS41IDEwNi4wIEwgNjkuNSAxMTIuMyIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjMDgwNzBhIiBzdHJva2Utd2lkdGg9IjIuMSIvPgo8L3N2Zz4=" alt="">
+      <span>CYBERVAULT</span>
+    </a>
+    <div class="navlinks">
+      <a class="navlink" href="#cli">CLI</a>
+      <a class="navlink" href="#tui">TUI</a>
+      <a class="navlink" href="#install">Install</a>
+      <a class="navlink btn btn-ghost" style="padding:7px 15px;font-size:12.5px;" href="https://github.com/darkstardevx/cybervault" target="_blank" rel="noopener">GitHub</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="wrap hero-grid">
+    <div>
+      <div class="pill-row" style="margin-bottom:18px;">
+        <span class="pill">Rust</span>
+        <span class="pill ice">Argon2id</span>
+        <span class="pill ice">ChaCha20-Poly1305</span>
+        <span class="pill">MIT</span>
+      </div>
+      <h1>One file. Vaulted.</h1>
+      <p class="hero-sub">Master-password unlock, one file, authenticated encryption — for storing generated passwords/passphrases (from Keysmith) or anything else you don't want sitting around in plaintext. A tampered vault fails to decrypt, full stop.</p>
+      <div class="hero-cta">
+        <a class="btn btn-primary" href="#install">Install CyberVault</a>
+        <a class="btn btn-ghost" href="#tui">See the TUI →</a>
+      </div>
+    </div>
+    <div class="seal-visual">
+      <svg viewBox="0 0 240 300">
+        <path d="M 30 16 L 160 16 L 210 66 L 210 284 L 30 284 Z" fill="#141018" stroke="#f5f2ef" stroke-width="3.5"/>
+        <path d="M 160 16 L 160 66 L 210 66" fill="none" stroke="#f5f2ef" stroke-width="3"/>
+        <line x1="52" y1="120" x2="188" y2="120" stroke="#8f88a3" stroke-width="3" opacity="0.4"/>
+        <line x1="52" y1="146" x2="188" y2="146" stroke="#8f88a3" stroke-width="3" opacity="0.4"/>
+        <line x1="52" y1="172" x2="188" y2="172" stroke="#8f88a3" stroke-width="3" opacity="0.4"/>
+        <circle cx="120" cy="270" r="52" fill="#e0a840"/>
+        <circle cx="120" cy="270" r="52" fill="none" stroke="#08070a" stroke-width="2.5"/>
+        <rect x="102" y="266" width="36" height="28" rx="4.5" fill="#08070a"/>
+        <path d="M 107.5 266 L 107.5 253 A 12.5 12.5 0 0 1 132.5 253 L 132.5 266" fill="none" stroke="#08070a" stroke-width="4.5"/>
+      </svg>
+    </div>
+  </div>
+</header>
+
+<div class="wrap"><div class="seam"><span class="dot"></span><div class="line"></div><span class="dot"></span></div></div>
+
+<section class="feature" id="cli">
+  <div class="wrap f-grid">
+    <div class="f-copy">
+      <div class="f-kicker">CLI — no session left unlocked</div>
+      <h2>Every operation prompts<br>for the master password.</h2>
+      <p>No unlocked session sits around anywhere to be stolen. <code>add</code> reads the secret from stdin if it's piped — the path Keysmith's <code>--save</code> flag uses — otherwise prompts interactively with hidden input.</p>
+      <p><strong>list</strong> shows labels, dates, and notes — never secrets.</p>
+    </div>
+    <div class="panel f-vis">
+      <div class="panel-bar"><div class="panel-id"><span class="seal-dot"></span><span class="panel-label">cybervault</span></div><span class="panel-label">cli</span></div>
+      <div class="panel-body">
+        <pre><span class="t-dim">$</span> <span class="t-white">cybervault add github --note "personal account"</span>
+<span class="t-muted">Master password:</span> <span class="t-white">************</span>
+<span class="t-muted">Secret:</span> <span class="t-white">************</span>
+<span class="t-ice">saved "github" -- 0600/0700, salt+nonce fresh</span>
+
+<span class="t-dim">$</span> <span class="t-white">cybervault list</span>
+<span class="t-gold">github</span>    <span class="t-muted">personal account</span>   <span class="t-dim">2026-09-18</span>
+<span class="t-gold">aws-prod</span>  <span class="t-muted">rotate quarterly</span>   <span class="t-dim">2026-08-02</span></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="wrap"><div class="seam"><span class="dot"></span><div class="line"></div><span class="dot"></span></div></div>
+
+<section class="feature" id="tui">
+  <div class="wrap f-grid rev">
+    <div class="f-copy">
+      <div class="f-kicker">TUI — unlock once</div>
+      <h2>Browse, search, copy —<br>without re-entering the password.</h2>
+      <p>Bare <code>cybervault</code> launches an interactive terminal UI. The derived key lives in memory only for the session and is gone the moment it exits.</p>
+      <p>While adding a new entry's secret, generate one on the spot with <span class="kbd">ctrl+g</span> (password) or <span class="kbd">ctrl+p</span> (passphrase) — both shell out to <strong>Keysmith</strong>, showing a live entropy estimate as you type a length or word count.</p>
+    </div>
+    <div class="panel f-vis">
+      <div class="panel-bar"><div class="panel-id"><span class="seal-dot"></span><span class="panel-label">cybervault</span></div><span class="panel-label">tui</span></div>
+      <div class="panel-body">
+        <pre><span class="t-white">j/k</span> <span class="t-muted">move</span>   <span class="t-white">/</span> <span class="t-muted">filter</span>   <span class="t-white">v</span> <span class="t-muted">reveal</span>   <span class="t-white">c</span> <span class="t-muted">copy</span>
+<span class="t-white">a</span> <span class="t-muted">add</span>   <span class="t-white">d</span> <span class="t-muted">remove</span>   <span class="t-white">q</span> <span class="t-muted">quit</span>
+
+<span class="t-dim">-- adding new entry, secret field --</span>
+<span class="t-gold">ctrl+g</span>  <span class="t-muted">generate password via keysmith</span>
+<span class="t-gold">ctrl+p</span>  <span class="t-muted">generate passphrase via keysmith</span>
+<span class="t-ice">~155 bits (Very Strong)</span></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="wrap"><div class="seam"><span class="dot"></span><div class="line"></div><span class="dot"></span></div></div>
+
+<section class="feature">
+  <div class="wrap f-grid">
+    <div class="f-copy">
+      <div class="f-kicker">Threat model</div>
+      <h2>Protects secrets at rest.<br>Nothing more, nothing less.</h2>
+      <p>Someone with read access to the vault file — a stolen disk, another user on the machine, a leaked backup — can't read it without the master password. It does <strong>not</strong> protect against a keylogger, malware on an already-unlocked session, or someone watching you type it.</p>
+      <p>The vault file and its directory are locked to owner-only (<code>0600</code>/<code>0700</code>) on <strong>every save</strong>, not just at creation — a file that predates this or got loosened some other way self-heals on the next write.</p>
+    </div>
+    <div class="panel f-vis">
+      <div class="panel-bar"><div class="panel-id"><span class="seal-dot"></span><span class="panel-label">~/.local/share/cybervault/vault.cvlt</span></div><span class="panel-label">perms</span></div>
+      <div class="panel-body">
+        <pre><span class="t-dim">$</span> <span class="t-white">stat -c '%a %n' ~/.local/share/cybervault/*</span>
+<span class="t-gold">0700</span> <span class="t-white">/home/user/.local/share/cybervault</span>
+<span class="t-gold">0600</span> <span class="t-white">/home/user/.local/share/cybervault/vault.cvlt</span>
+
+<span class="t-dim"># re-checked and re-applied on every write, not just init</span></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="install" id="install">
+  <div class="wrap">
+    <div class="install-head">
+      <h2>Get CyberVault running</h2>
+      <p>One command — downloads, verifies the checksum, installs to <code>~/.local/bin</code>.</p>
+    </div>
+    <div class="panel install-card">
+      <div class="os-tabs" role="tablist">
+        <button class="os-tab active" data-os="linux" onclick="cvSetOs('linux')">Linux</button>
+        <button class="os-tab" data-os="macos" onclick="cvSetOs('macos')">macOS</button>
+      </div>
+      <div class="cmd-row">
+        <span class="prompt">&gt;_</span>
+        <code id="cv-cmd" class="mono">curl -fsSL https://raw.githubusercontent.com/darkstardevx/cybervault/main/install.sh | sh</code>
+        <button class="copy-btn" onclick="cvCopy(this)" aria-label="Copy command">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        </button>
+      </div>
+      <p class="install-note">Installs <code>cybervault</code>. Works standalone — Keysmith is only needed for the TUI's ctrl+g/ctrl+p generate-in-place shortcuts.</p>
+      <div class="install-companion">
+        <p>Want generate-in-place in the TUI too?</p>
+        <div class="cmd-row" style="margin:0;">
+          <span class="prompt">&gt;_</span>
+          <code class="mono">curl -fsSL https://raw.githubusercontent.com/darkstardevx/keysmith/main/install.sh | sh</code>
+        </div>
+      </div>
+    </div>
+    <p class="dl-count" id="dl-count">&hellip;</p>
+    <div class="install-more">
+      <a href="https://github.com/darkstardevx/cybervault#-commands" target="_blank" rel="noopener">More install options &amp; manual builds →</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap foot-row">
+    <div class="foot-brand">
+      <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMjggMTI4Ij4KICAKICA8ZGVmcz48L2RlZnM+CiAgPHJlY3Qgd2lkdGg9IjEyOCIgaGVpZ2h0PSIxMjgiIHJ4PSIyOCIgZmlsbD0iIzA4MDcwYSIvPgogIDxwYXRoIGQ9Ik0gMjIuMCAxMS41IEwgODcuNSAxMS41IEwgMTA2LjAgMzAuMCBMIDEwNi4wIDExNi41IEwgMjIuMCAxMTYuNSBaIiBmaWxsPSIjMTQxMDE4IiBzdHJva2U9IiNmNWYyZWYiIHN0cm9rZS13aWR0aD0iMi4xIi8+PHBhdGggZD0iTSA4Ny41IDExLjUgTCA4Ny41IDMwLjAgTCAxMDYuMCAzMC4wIiBmaWxsPSJub25lIiBzdHJva2U9IiNmNWYyZWYiIHN0cm9rZS13aWR0aD0iMS43Ii8+PGNpcmNsZSBjeD0iNjQuMCIgY3k9IjExNC4wIiByPSIyMi43IiBmaWxsPSIjZTBhODQwIi8+PGNpcmNsZSBjeD0iNjQuMCIgY3k9IjExNC4wIiByPSIyMi43IiBmaWxsPSJub25lIiBzdHJva2U9IiMwODA3MGEiIHN0cm9rZS13aWR0aD0iMS4zIi8+PHJlY3QgeD0iNTYuMCIgeT0iMTEyLjMiIHdpZHRoPSIxNi4wIiBoZWlnaHQ9IjEyLjYiIHJ4PSIyLjEiIGZpbGw9IiMwODA3MGEiLz48cGF0aCBkPSJNIDU4LjUgMTEyLjMgTCA1OC41IDEwNi4wIEEgNS41IDUuNSAwIDAgMSA2OS41IDEwNi4wIEwgNjkuNSAxMTIuMyIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjMDgwNzBhIiBzdHJva2Utd2lkdGg9IjIuMSIvPgo8L3N2Zz4=" alt="">
+      <span>CyberVault &middot; MIT licensed &middot; pairs with Keysmith</span>
+    </div>
+    <div class="foot-links">
+      <a href="https://github.com/darkstardevx/cybervault" target="_blank" rel="noopener">GitHub</a>
+      <a href="https://github.com/darkstardevx/keysmith" target="_blank" rel="noopener">Keysmith</a>
+      <a href="#install">Install</a>
+    </div>
+    <div class="foot-family">Cybercore family</div>
+  </div>
+</footer>
+
+<script>
+  const CMDS = {
+    linux: 'curl -fsSL https://raw.githubusercontent.com/darkstardevx/cybervault/main/install.sh | sh',
+    macos: 'curl -fsSL https://raw.githubusercontent.com/darkstardevx/cybervault/main/install.sh | sh'
+  };
+  function cvSetOs(os) {
+    document.querySelectorAll('.os-tab').forEach(t => t.classList.toggle('active', t.dataset.os === os));
+    document.getElementById('cv-cmd').textContent = CMDS[os];
+  }
+  function cvCopy(btn) {
+    const text = document.getElementById('cv-cmd').textContent;
+    navigator.clipboard?.writeText(text).then(() => {
+      btn.classList.add('copied');
+      setTimeout(() => btn.classList.remove('copied'), 1400);
+    }).catch(() => {});
+  }
+  try { if (/Mac OS X|Macintosh/.test(navigator.userAgent)) cvSetOs('macos'); } catch (e) {}
+
+  fetch('https://api.github.com/repos/darkstardevx/cybervault/releases/latest', { headers: { Accept: 'application/vnd.github+json' } })
+    .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+    .then(rel => {
+      const dl = (rel.assets || [])
+        .filter(a => !a.name.endsWith('.sha256'))
+        .reduce((sum, a) => sum + (a.download_count || 0), 0);
+      document.getElementById('dl-count').textContent = dl.toLocaleString() + ' downloads (' + rel.tag_name + ')';
+    })
+    .catch(() => { document.getElementById('dl-count').textContent = ''; });
+</script>
