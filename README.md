@@ -1,9 +1,13 @@
+<p align="center"><img src="assets/brand/cybervault-hero.svg" alt="CyberVault" width="100%"></p>
+
 # 🔐 CyberVault
 
 [![CI](https://github.com/darkstardevx/cybervault/actions/workflows/ci.yml/badge.svg)](https://github.com/darkstardevx/cybervault/actions/workflows/ci.yml)
 [![Release](https://github.com/darkstardevx/cybervault/actions/workflows/release.yml/badge.svg)](https://github.com/darkstardevx/cybervault/actions/workflows/release.yml)
 
 `Rust` · `Argon2id` · `ChaCha20-Poly1305`
+
+**[darkstardevx.github.io/cybervault](https://darkstardevx.github.io/cybervault/)** — install command, CLI/TUI walkthrough, threat model.
 
 **Encrypted secrets vault.** Master-password unlock, one file, authenticated
 encryption — for storing generated passwords/passphrases (from
